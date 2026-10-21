@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: second_pair_of_eyes
+      POSTGRES_USER: second_pair
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-demo-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U second_pair -d second_pair_of_eyes"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://second_pair:${POSTGRES_PASSWORD:-local-demo-password}@db:5432/second_pair_of_eyes
+      FRONTEND_ORIGIN: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080
+      CHROMA_PATH: /app/.data/chroma
+      HISTORY_REPO_PATH: ${HISTORY_REPO_PATH:-/history}
+      AI_REVIEW_MODE: ${AI_REVIEW_MODE:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      MAX_SOURCE_CHARS: ${MAX_SOURCE_CHARS:-100000}
+      DASHBOARD_API_TOKEN: ${DASHBOARD_API_TOKEN:-}
+      DASHBOARD_COOKIE_SECURE: ${DASHBOARD_COOKIE_SECURE:-false}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_APP_PRIVATE_KEY_PATH: ${GITHUB_APP_PRIVATE_KEY_PATH:-}
+      GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
+      GITHUB_API_VERSION: ${GITHUB_API_VERSION:-2026-03-10}
+      GITHUB_REQUEST_TIMEOUT_SECONDS: ${GITHUB_REQUEST_TIMEOUT_SECONDS:-20}
+      GITHUB_MAX_RETRIES: ${GITHUB_MAX_RETRIES:-3}
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/app/.data/chroma
+      - ${HISTORY_HOST_PATH:-./history}:/history:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  chroma_data:
